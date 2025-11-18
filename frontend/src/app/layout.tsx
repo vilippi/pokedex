@@ -11,8 +11,8 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "MELHOR PokeNext - Pokédex",
-  description: "Pokédex não oficial construída com Next.js e PokéAPI.",
+  title: "Pokédex - Oficial",
+  description: "Pokédex criada para ajudar você treinador na sua jornada!",
 };
 
 export default function RootLayout({
@@ -21,11 +21,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR">
-      <body
-        className={`${spaceGrotesk.className} bg-slate-950 text-slate-100 antialiased`}
-      >
-        <div className="flex min-h-screen flex-col bg-linear-to-b from-slate-950 via-slate-950 to-slate-900">
+    <html lang="pt-BR" suppressHydrationWarning>
+      <body className={`${spaceGrotesk.className} antialiased`}>
+        {/* fundo muda conforme a classe `dark` no <html> */}
+        <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
           <MainHeader />
 
           <main className="flex-1">
