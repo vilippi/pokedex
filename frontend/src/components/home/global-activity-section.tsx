@@ -408,7 +408,7 @@ function RegionPing({
         <button
             type="button"
             onClick={onClick}
-            className={`group absolute -translate-x-1/2 -translate-y-1/2 ${className ?? ""}`}
+            className={`cursor-pointer group absolute -translate-x-1/2 -translate-y-1/2 ${className ?? ""}`}
         >
             {/* círculo de ping */}
             <span
@@ -421,7 +421,7 @@ function RegionPing({
                 }`}
             />
             {label && (
-                <span className="absolute left-4 top-1 text-[9px] font-medium text-slate-100 drop-shadow">
+                <span className="absolute left-4 top-1 text-[10px] font-medium text-slate-100 drop-shadow">
                     {label}
                 </span>
             )}
