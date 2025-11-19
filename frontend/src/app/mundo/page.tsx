@@ -1,91 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
-type RegionId =
-    | "kanto"
-    | "johto"
-    | "hoenn"
-    | "sinnoh"
-    | "unova"
-    | "kalos"
-    | "alola"
-    | "galar"
-    | "hisui"
-    | "paldea";
-
-type RegionInfo = {
-    id: RegionId;
-    name: string;
-    generation: string;
-    totalPokemon: number;
-    image: string; // caminho em /public
-};
-
-const REGIONS: RegionInfo[] = [
-    {
-        id: "kanto",
-        name: "Kanto",
-        generation: "Geração I",
-        totalPokemon: 151,
-        image: "/regions/kanto.jpg",
-    },
-    {
-        id: "johto",
-        name: "Johto",
-        generation: "Geração II",
-        totalPokemon: 100,
-        image: "/regions/johto.jpg",
-    },
-    {
-        id: "hoenn",
-        name: "Hoenn",
-        generation: "Geração III",
-        totalPokemon: 135,
-        image: "/regions/hoenn.jpg",
-    },
-    {
-        id: "sinnoh",
-        name: "Sinnoh",
-        generation: "Geração IV",
-        totalPokemon: 107,
-        image: "/regions/sinnoh.jpg",
-    },
-    {
-        id: "unova",
-        name: "Unova",
-        generation: "Geração V",
-        totalPokemon: 156,
-        image: "/regions/unova.jpg",
-    },
-    {
-        id: "kalos",
-        name: "Kalos",
-        generation: "Geração VI",
-        totalPokemon: 72,
-        image: "/regions/kalos.jpg",
-    },
-    {
-        id: "alola",
-        name: "Alola",
-        generation: "Geração VII",
-        totalPokemon: 88,
-        image: "/regions/alola.jpg",
-    },
-    {
-        id: "galar",
-        name: "Galar",
-        generation: "Geração VIII",
-        totalPokemon: 89,
-        image: "/regions/galar.jpg",
-    },
-    {
-        id: "paldea",
-        name: "Paldea",
-        generation: "Geração IX",
-        totalPokemon: 103,
-        image: "/regions/paldea.jpg",
-    },
-];
+import { REGIONS } from "@/data/regions";
 
 export const metadata = {
     title: "Mundo Pokémon · Regiões | Pokédex Control Center",
@@ -137,7 +53,7 @@ export default function MundoPage() {
                     >
                         <article className="flex min-h-80 flex-col overflow-hidden rounded-3xl border border-slate-800 bg-slate-950/80 shadow-lg shadow-slate-950/40 transition hover:-translate-y-1 hover:border-sky-500/70 hover:shadow-sky-900/40 sm:min-h-[260px]">
                             {/* Imagem da região – bem alta no mobile */}
-                            <div className="relative h-125 w-full overflow-hidden bg-slate-900">
+                            <div className="relative h-64 w-full overflow-hidden bg-slate-900 sm:h-44">
                                 <Image
                                     src={region.image}
                                     alt={`Região ${region.name}`}

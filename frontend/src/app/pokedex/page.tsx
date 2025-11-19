@@ -1,590 +1,457 @@
-"use client";
-
-import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { Search, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 
-const PAGE_SIZE = 15;
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
-type PokemonRef = {
-    id: number;
-    name: string;
-    url: string;
-};
+import { REGIONS, type RegionId } from "@/data/regions";
 
-type PokemonCardData = {
+type PokemonListItem = {
     id: number;
     name: string;
     image: string;
-    types: string[];
 };
 
-type PokeAPIListResult = {
-    name: string;
-    url: string;
+type SortOption = "number-asc" | "number-desc" | "name-asc" | "name-desc";
+
+// Tipos oficiais da PokéAPI
+type PokemonType =
+    | "normal"
+    | "fire"
+    | "water"
+    | "grass"
+    | "electric"
+    | "ice"
+    | "fighting"
+    | "poison"
+    | "ground"
+    | "flying"
+    | "psychic"
+    | "bug"
+    | "rock"
+    | "ghost"
+    | "dragon"
+    | "dark"
+    | "steel"
+    | "fairy";
+
+type PokedexSearchParams = {
+    page?: string;
+    q?: string;
+    region?: string;
+    type?: string;
+    sort?: SortOption | string;
 };
 
-type PokeAPIListResponse = {
-    count: number;
-    results: PokeAPIListResult[];
+const PER_PAGE = 15;
+
+// Faixas aproximadas por região (Dex nacional)
+const REGION_DEX_RANGES: Record<RegionId, { start: number; end: number }> = {
+    kanto: { start: 1, end: 151 },
+    johto: { start: 152, end: 251 },
+    hoenn: { start: 252, end: 386 },
+    sinnoh: { start: 387, end: 493 },
+    unova: { start: 494, end: 649 },
+    kalos: { start: 650, end: 721 },
+    alola: { start: 722, end: 809 },
+    galar: { start: 810, end: 898 },
+    hisui: { start: 899, end: 905 }, // aproximação para formas Hisui
+    paldea: { start: 906, end: 1025 },
 };
 
-type PokeAPIDetail = {
-    id: number;
-    name: string;
-    types: { type: { name: string } }[];
-};
+const TYPE_OPTIONS: { value: PokemonType; label: string }[] = [
+    { value: "normal", label: "Normal" },
+    { value: "fire", label: "Fire (Fogo)" },
+    { value: "water", label: "Water (Água)" },
+    { value: "grass", label: "Grass (Grama)" },
+    { value: "electric", label: "Electric (Elétrico)" },
+    { value: "ice", label: "Ice (Gelo)" },
+    { value: "fighting", label: "Fighting (Lutador)" },
+    { value: "poison", label: "Poison (Venenoso)" },
+    { value: "ground", label: "Ground (Terra)" },
+    { value: "flying", label: "Flying (Voador)" },
+    { value: "psychic", label: "Psychic (Psíquico)" },
+    { value: "bug", label: "Bug (Inseto)" },
+    { value: "rock", label: "Rock (Pedra)" },
+    { value: "ghost", label: "Ghost (Fantasma)" },
+    { value: "dragon", label: "Dragon (Dragão)" },
+    { value: "dark", label: "Dark (Sombrio)" },
+    { value: "steel", label: "Steel (Aço)" },
+    { value: "fairy", label: "Fairy (Fada)" },
+];
 
-type PokeAPITypePokemonEntry = {
-    pokemon: { name: string; url: string };
-};
-
-type PokeAPITypeResponse = {
-    pokemon: PokeAPITypePokemonEntry[];
-};
-
-const POKEMON_IMAGE_BASE =
-    "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork";
-
-const POKEMON_TYPES = [
-    "all",
-    "normal",
-    "fire",
-    "water",
-    "grass",
-    "electric",
-    "ice",
-    "fighting",
-    "poison",
-    "ground",
-    "flying",
-    "psychic",
-    "bug",
-    "rock",
-    "ghost",
-    "dragon",
-    "dark",
-    "steel",
-    "fairy",
-] as const;
-
-type PokemonTypeFilter = (typeof POKEMON_TYPES)[number];
-
-const SORT_OPTIONS = [
-    { value: "id-asc", label: "ID crescente" },
-    { value: "id-desc", label: "ID decrescente" },
-    { value: "name-asc", label: "Nome A-Z" },
-    { value: "name-desc", label: "Nome Z-A" },
-] as const;
-
-type SortOption = (typeof SORT_OPTIONS)[number]["value"];
-
-export default function PokedexPage() {
-    const [search, setSearch] = useState("");
-    const [typeFilter, setTypeFilter] =
-        useState<PokemonTypeFilter>("all");
-    const [sortBy, setSortBy] = useState<SortOption>("id-asc");
-    const [page, setPage] = useState(1);
-
-    const [refList, setRefList] = useState<PokemonRef[]>([]);
-    const [items, setItems] = useState<PokemonCardData[]>([]);
-    const [totalCount, setTotalCount] = useState<number>(0);
-
-    const [loadingRefs, setLoadingRefs] = useState(false);
-    const [loadingDetails, setLoadingDetails] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    const loading = loadingRefs || loadingDetails;
-
-    // Sempre que mudar busca ou tipo, volta pra página 1
-    useEffect(() => {
-        setPage(1);
-    }, [search, typeFilter]);
-
-    // Utilitário pra pegar ID da URL da PokéAPI
-    function getIdFromUrl(url: string): number {
-        const parts = url.split("/").filter(Boolean);
-        const last = parts[parts.length - 1];
-        return Number(last);
-    }
-
-    // 1) Buscar a LISTA COMPLETA de Pokémon conforme o filtro de tipo
-    useEffect(() => {
-        let cancelled = false;
-
-        async function loadRefs() {
-            setLoadingRefs(true);
-            setError(null);
-
-            try {
-                if (typeFilter === "all") {
-                    // pega todos os Pokémon (só nome+url) – catálogo inteiro
-                    const listRes = await fetch(
-                        "https://pokeapi.co/api/v2/pokemon?limit=2000&offset=0",
-                    );
-                    if (!listRes.ok) {
-                        throw new Error(
-                            "Falha ao carregar lista de Pokémon da PokéAPI.",
-                        );
-                    }
-                    const listJson =
-                        (await listRes.json()) as PokeAPIListResponse;
-
-                    const refs: PokemonRef[] = listJson.results.map(
-                        (p) => ({
-                            id: getIdFromUrl(p.url),
-                            name: p.name,
-                            url: p.url,
-                        }),
-                    );
-
-                    if (cancelled) return;
-                    setRefList(refs);
-                    setTotalCount(refs.length);
-                } else {
-                    // filtro por tipo – catálogo só dessa "categoria"
-                    const typeRes = await fetch(
-                        `https://pokeapi.co/api/v2/type/${typeFilter}`,
-                    );
-                    if (!typeRes.ok) {
-                        throw new Error("Falha ao carregar Pokémon por tipo.");
-                    }
-                    const typeJson =
-                        (await typeRes.json()) as PokeAPITypeResponse;
-
-                    const refs: PokemonRef[] = typeJson.pokemon.map((entry) => {
-                        const url = entry.pokemon.url;
-                        return {
-                            id: getIdFromUrl(url),
-                            name: entry.pokemon.name,
-                            url,
-                        };
-                    });
-
-                    if (cancelled) return;
-                    setRefList(refs);
-                    setTotalCount(refs.length);
-                }
-            } catch (err) {
-                if (cancelled) return;
-                console.error(err);
-                setRefList([]);
-                setTotalCount(0);
-                setError("Ocorreu um erro ao carregar a Pokédex.");
-            } finally {
-                if (!cancelled) {
-                    setLoadingRefs(false);
-                }
-            }
-        }
-
-        loadRefs();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [typeFilter]);
-
-    // 2) Aplicar busca + ordenação em memória na lista inteira
-    const filteredSortedRefs = useMemo(() => {
-        let refs = [...refList];
-
-        const query = search.trim().toLowerCase();
-        if (query) {
-            refs = refs.filter((p) => {
-                const byName = p.name.toLowerCase().includes(query);
-                const byId = p.id.toString() === query;
-                return byName || byId;
-            });
-        }
-
-        switch (sortBy) {
-            case "id-asc":
-                refs.sort((a, b) => a.id - b.id);
-                break;
-            case "id-desc":
-                refs.sort((a, b) => b.id - a.id);
-                break;
-            case "name-asc":
-                refs.sort((a, b) =>
-                    a.name.localeCompare(b.name),
-                );
-                break;
-            case "name-desc":
-                refs.sort((a, b) =>
-                    b.name.localeCompare(a.name),
-                );
-                break;
-        }
-
-        return refs;
-    }, [refList, search, sortBy]);
-
-    // 3) Paginar em memória os refs filtrados e ordenados
-    const totalFilteredCount = filteredSortedRefs.length;
-
-    const totalPages = useMemo(() => {
-        if (!totalFilteredCount) return 1;
-        return Math.max(
-            1,
-            Math.ceil(totalFilteredCount / PAGE_SIZE),
-        );
-    }, [totalFilteredCount]);
-
-    const pageRefs = useMemo(() => {
-        if (totalFilteredCount === 0) return [];
-        const safePage = Math.min(page, totalPages);
-        const start = (safePage - 1) * PAGE_SIZE;
-        return filteredSortedRefs.slice(start, start + PAGE_SIZE);
-    }, [filteredSortedRefs, page, totalPages, totalFilteredCount]);
-
-    const showingRange = useMemo(() => {
-        if (totalFilteredCount === 0) return null;
-        const currentPage =
-            page > totalPages ? totalPages : page;
-        const start = (currentPage - 1) * PAGE_SIZE + 1;
-        const end = Math.min(
-            currentPage * PAGE_SIZE,
-            totalFilteredCount,
-        );
-        return { start, end };
-    }, [page, totalPages, totalFilteredCount]);
-
-    // 4) Buscar detalhes (tipos, etc.) apenas dos Pokémon da página atual
-    useEffect(() => {
-        let cancelled = false;
-
-        async function fetchPokemonDetail(
-            id: number,
-        ): Promise<PokemonCardData | null> {
-            try {
-                const res = await fetch(
-                    `https://pokeapi.co/api/v2/pokemon/${id}`,
-                );
-                if (!res.ok) return null;
-                const data = (await res.json()) as PokeAPIDetail;
-                return {
-                    id: data.id,
-                    name: data.name,
-                    image: `${POKEMON_IMAGE_BASE}/${data.id}.png`,
-                    types: data.types.map((t) => t.type.name),
-                };
-            } catch {
-                return null;
-            }
-        }
-
-        async function loadDetails() {
-            setLoadingDetails(true);
-            setError(null);
-
-            try {
-                if (pageRefs.length === 0) {
-                    setItems([]);
-                    return;
-                }
-
-                const details = await Promise.all(
-                    pageRefs.map((ref) => fetchPokemonDetail(ref.id)),
-                );
-                if (cancelled) return;
-
-                const cards = details.filter(
-                    (p): p is PokemonCardData => p !== null,
-                );
-
-                setItems(cards);
-            } catch (err) {
-                if (cancelled) return;
-                console.error(err);
-                setItems([]);
-                setError(
-                    "Ocorreu um erro ao carregar os detalhes dos Pokémon.",
-                );
-            } finally {
-                if (!cancelled) {
-                    setLoadingDetails(false);
-                }
-            }
-        }
-
-        loadDetails();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [pageRefs]);
-
-    return (
-        <div className="space-y-6">
-            {/* Título da página */}
-            <div className="space-y-2">
-                <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                    Pokédex
-                </h1>
-                <p className="text-sm text-slate-400">
-                    Navegue pelos registros oficiais da Pokédex como se estivesse
-                    em uma vitrine de loja: filtre, pesquise e explore as espécies
-                    com visual de catálogo.
-                </p>
-            </div>
-
-            {/* Barra de busca + filtros */}
-            <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/70 p-4 shadow-lg shadow-slate-950/40">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                    <div className="relative flex-1">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                        <input
-                            type="text"
-                            placeholder="Buscar por nome ou ID (ex.: pikachu, 25)..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="w-full rounded-xl border border-slate-700 bg-slate-950/80 py-2 pl-9 pr-3 text-sm text-slate-100 placeholder:text-slate-500 outline-none ring-0 transition focus:border-red-500 focus:ring-1 focus:ring-red-500"
-                        />
-                    </div>
-
-                    <button
-                        type="button"
-                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 shadow-sm hover:border-red-500 hover:bg-slate-900/80"
-                    >
-                        <SlidersHorizontal className="h-4 w-4" />
-                        Filtros
-                    </button>
-                </div>
-
-                {/* Filtros (linha abaixo da busca) */}
-                <div className="grid gap-3 text-xs text-slate-300 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-                    {/* Filtro por tipo */}
-                    <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[11px] uppercase tracking-wide text-slate-500">
-                            Tipo
-                        </span>
-                        <select
-                            value={typeFilter}
-                            onChange={(e) =>
-                                setTypeFilter(
-                                    e.target.value as PokemonTypeFilter,
-                                )
-                            }
-                            className="h-8 rounded-lg border border-slate-700 bg-slate-950/80 px-2 text-xs text-slate-100 outline-none ring-0 focus:border-red-500 focus:ring-1 focus:ring-red-500"
-                        >
-                            {POKEMON_TYPES.map((type) => (
-                                <option key={type} value={type}>
-                                    {type === "all"
-                                        ? "Todos os tipos"
-                                        : type.charAt(0).toUpperCase() +
-                                            type.slice(1)}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Ordenação */}
-                    <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
-                        <span className="text-[11px] uppercase tracking-wide text-slate-500">
-                            Ordenar por
-                        </span>
-                        <select
-                            value={sortBy}
-                            onChange={(e) =>
-                                setSortBy(e.target.value as SortOption)
-                            }
-                            className="h-8 rounded-lg border border-slate-700 bg-slate-950/80 px-2 text-xs text-slate-100 outline-none ring-0 focus:border-red-500 focus:ring-1 focus:ring-red-500"
-                        >
-                            {SORT_OPTIONS.map((opt) => (
-                                <option key={opt.value} value={opt.value}>
-                                    {opt.label}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            {/* Infos de resultado + paginação superior */}
-            <div className="flex flex-col items-start justify-between gap-2 text-xs text-slate-400 sm:flex-row sm:items-center">
-                <div>
-                    {loading && <span>Carregando Pokémon...</span>}
-                    {!loading && showingRange && (
-                        <span>
-                            Mostrando{" "}
-                            <span className="font-medium text-slate-200">
-                                {showingRange.start}–{showingRange.end}
-                            </span>{" "}
-                            de{" "}
-                            <span className="font-medium text-slate-200">
-                                {totalFilteredCount.toLocaleString("pt-BR")}
-                            </span>{" "}
-                            resultados
-                        </span>
-                    )}
-                    {!loading && !showingRange && (
-                        <span>Nenhum resultado encontrado.</span>
-                    )}
-                </div>
-
-                {totalPages > 1 && (
-                    <PaginationControls
-                        page={page}
-                        totalPages={totalPages}
-                        onPageChange={setPage}
-                    />
-                )}
-            </div>
-
-            {/* Grade de cards (15 por página, até 5 por linha no desktop) */}
-            <section>
-                {error && (
-                    <div className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-xs text-red-200">
-                        {error}
-                    </div>
-                )}
-
-                {items.length === 0 && !loading && !error && (
-                    <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-6 text-center text-sm text-slate-400">
-                        Nenhum Pokémon para exibir no momento. Ajuste sua busca
-                        ou filtros.
-                    </div>
-                )}
-
-                <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                    {loading && items.length === 0
-                        ? Array.from({ length: 10 }).map((_, i) => (
-                            <SkeletonCard key={i} />
-                        ))
-                        : items.map((pokemon) => (
-                            <PokemonCard key={pokemon.id} pokemon={pokemon} />
-                        ))}
-                </div>
-            </section>
-
-            {/* Paginação inferior (loja de roupas) */}
-            {totalPages > 1 && (
-                <div className="flex justify-center">
-                    <PaginationControls
-                        page={page}
-                        totalPages={totalPages}
-                        onPageChange={setPage}
-                    />
-                </div>
-            )}
-        </div>
-    );
-}
-
-/* ======== Componentes visuais ========= */
-
-function PokemonCard({ pokemon }: { pokemon: PokemonCardData }) {
-    const formattedName = pokemon.name
+function formatName(name: string): string {
+    return name
         .replace(/-/g, " ")
         .split(" ")
-        .map(
-            (word) =>
-                word.charAt(0).toUpperCase() + word.slice(1)
-        )
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(" ");
-
-    return (
-        <Link
-            href={`/pokemon/${pokemon.id}`}
-            className="group block"
-            >
-            <article className="flex flex-col rounded-2xl border border-slate-800 bg-slate-950/80 p-3 shadow-md shadow-slate-950/40 transition hover:-translate-y-1 hover:border-red-500/70 hover:shadow-sky-900/40">
-                {/* imagem / vitrine */}
-                <div className="relative mb-3 flex h-32 items-center justify-center overflow-hidden rounded-xl bg-slate-900/80">
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#0ea5e933,transparent_55%)] opacity-60" />
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom,#f9731622,transparent_55%)] opacity-60" />
-
-                    <div className="relative h-24 w-24">
-                        <Image
-                            src={pokemon.image}
-                            alt={pokemon.name}
-                            fill
-                            className="object-contain transition-transform duration-200 group-hover:scale-110"
-                        />
-                    </div>
-
-                    <span className="absolute right-2 top-2 rounded-full bg-slate-900/90 px-2 py-0.5 text-[10px] font-mono text-slate-200">
-                        #{pokemon.id.toString().padStart(4, "0")}
-                    </span>
-                </div>
-
-                {/* info básica */}
-                <div className="flex flex-1 flex-col gap-2">
-                    <div className="flex items-start justify-between gap-2">
-                        <h3 className="line-clamp-1 text-sm font-semibold text-slate-50">
-                            {formattedName}
-                        </h3>
-                    </div>
-
-                    <div className="flex flex-wrap gap-1">
-                        {pokemon.types.map((type) => (
-                            <span
-                                key={type}
-                                className="rounded-full bg-slate-900/80 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-300"
-                            >
-                                {type}
-                            </span>
-                        ))}
-                    </div>
-                </div>
-            </article>
-        </Link>
-    );
 }
 
+async function getAllPokemonBasic(): Promise<PokemonListItem[]> {
+    const res = await fetch("https://pokeapi.co/api/v2/pokemon?limit=1025", {
+        next: { revalidate: 3600 }, // revalida a cada 1h
+    });
 
-function SkeletonCard() {
-    return (
-        <div className="flex flex-col rounded-2xl border border-slate-800 bg-slate-950/80 p-3">
-            <div className="mb-3 h-32 animate-pulse rounded-xl bg-slate-800/80" />
-            <div className="mb-2 h-3 w-3/4 animate-pulse rounded bg-slate-800" />
-            <div className="h-3 w-1/2 animate-pulse rounded bg-slate-800" />
-        </div>
-    );
+    if (!res.ok) {
+        throw new Error("Falha ao carregar lista de Pokémon.");
+    }
+
+    const data: {
+        results: { name: string; url: string }[];
+    } = await res.json();
+
+    return data.results.map((item, index) => {
+        const match = item.url.match(/\/pokemon\/(\d+)\//);
+        const id = match ? Number(match[1]) : index + 1;
+
+        return {
+            id,
+            name: item.name,
+            image: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`,
+        };
+    });
 }
 
-function PaginationControls({
-    page,
-    totalPages,
-    onPageChange,
+// Busca IDs de Pokémon por tipo na PokéAPI
+async function getPokemonIdsByType(type: PokemonType): Promise<Set<number>> {
+    try {
+        const res = await fetch(`https://pokeapi.co/api/v2/type/${type}`, {
+            next: { revalidate: 3600 },
+        });
+        if (!res.ok) {
+            return new Set();
+        }
+
+        const data: {
+            pokemon: { pokemon: { url: string } }[];
+        } = await res.json();
+
+        const ids = new Set<number>();
+        for (const entry of data.pokemon) {
+            const url = entry.pokemon.url;
+            const match = url.match(/\/pokemon\/(\d+)\//);
+            if (match) {
+                ids.add(Number(match[1]));
+            }
+        }
+
+        return ids;
+    } catch {
+        return new Set();
+    }
+}
+
+function filterByRegion(list: PokemonListItem[], regionSlug?: string): PokemonListItem[] {
+    if (!regionSlug || regionSlug === "all") return list;
+
+    const key = regionSlug.toLowerCase() as RegionId;
+    const range = REGION_DEX_RANGES[key];
+    if (!range) return list;
+
+    return list.filter((p) => p.id >= range.start && p.id <= range.end);
+}
+
+function sortPokemon(list: PokemonListItem[], sort: SortOption): PokemonListItem[] {
+    const copy = [...list];
+
+    switch (sort) {
+        case "number-desc":
+            return copy.sort((a, b) => b.id - a.id);
+        case "name-asc":
+            return copy.sort((a, b) => a.name.localeCompare(b.name));
+        case "name-desc":
+            return copy.sort((a, b) => b.name.localeCompare(a.name));
+        case "number-asc":
+        default:
+            return copy.sort((a, b) => a.id - b.id);
+    }
+}
+
+function buildPageHref(
+    page: number,
+    q: string,
+    region: string,
+    typeFilter: string,
+    sort: SortOption,
+): string {
+    const params = new URLSearchParams();
+
+    if (q) params.set("q", q);
+    if (region && region !== "all") params.set("region", region);
+    if (typeFilter && typeFilter !== "all") params.set("type", typeFilter);
+    if (sort && sort !== "number-asc") params.set("sort", sort);
+    params.set("page", String(page));
+
+    const query = params.toString();
+    return query ? `/pokedex?${query}` : "/pokedex";
+}
+
+export const metadata = {
+    title: "Pokédex | Pokédex Control Center",
+};
+
+export default async function PokedexPage({
+    searchParams,
 }: {
-    page: number;
-    totalPages: number;
-    onPageChange: (page: number) => void;
+    searchParams: Promise<PokedexSearchParams>;
 }) {
-    const canPrev = page > 1;
-    const canNext = page < totalPages;
+    const sp = await searchParams;
+
+    const q = (sp?.q ?? "").trim();
+    const region = sp?.region ?? "all";
+    const typeFilter = sp?.type ?? "all";
+    const sort = (sp?.sort as SortOption) ?? "number-asc";
+
+    const currentPage = Number(sp?.page) > 0 ? Number(sp?.page) : 1;
+
+    const allPokemon = await getAllPokemonBasic();
+
+    // 1. busca por nome ou número
+    let filtered = allPokemon;
+    if (q) {
+        const term = q.toLowerCase();
+        filtered = filtered.filter(
+            (p) => p.name.toLowerCase().includes(term) || p.id.toString() === term,
+        );
+    }
+
+    // 2. filtro por região
+    filtered = filterByRegion(filtered, region);
+
+    // 3. filtro por tipo (se aplicado)
+    if (typeFilter && typeFilter !== "all") {
+        const key = typeFilter.toLowerCase() as PokemonType;
+        const idsByType = await getPokemonIdsByType(key);
+        if (idsByType.size > 0) {
+            filtered = filtered.filter((p) => idsByType.has(p.id));
+        } else {
+            filtered = [];
+        }
+    }
+
+    // 4. ordenação
+    filtered = sortPokemon(filtered, sort);
+
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+
+    const safePage = Math.min(Math.max(currentPage, 1), totalPages);
+    const start = (safePage - 1) * PER_PAGE;
+    const pageItems = filtered.slice(start, start + PER_PAGE);
+
+    const selectedRegion =
+        region !== "all"
+            ? REGIONS.find((r) => r.id === region.toLowerCase())
+            : undefined;
+
+    const selectedTypeLabel =
+        typeFilter !== "all"
+            ? TYPE_OPTIONS.find((t) => t.value === (typeFilter as PokemonType))?.label
+            : undefined;
 
     return (
-        <div className="inline-flex items-center gap-3 rounded-full border border-slate-800 bg-slate-950/80 px-3 py-1.5 text-xs text-slate-300 shadow-md shadow-slate-950/40">
-            <button
-                type="button"
-                disabled={!canPrev}
-                onClick={() => canPrev && onPageChange(page - 1)}
-                className="rounded-full px-2 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:text-slate-600 hover:bg-slate-900"
-            >
-                Anterior
-            </button>
-            <span className="text-[11px] text-slate-400">
-                Página{" "}
-                <span className="font-semibold text-slate-100">
-                    {page}
-                </span>{" "}
-                de{" "}
-                <span className="font-semibold text-slate-100">
-                    {totalPages}
-                </span>
-            </span>
-            <button
-                type="button"
-                disabled={!canNext}
-                onClick={() => canNext && onPageChange(page + 1)}
-                className="rounded-full px-2 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:text-slate-600 hover:bg-slate-900"
-            >
-                Próxima
-            </button>
+        <div className="space-y-8">
+            {/* Cabeçalho */}
+            <header className="space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-red-400">
+                    Global Pokédex · Listagem
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+                            Pokédex Global
+                        </h1>
+                        <p className="text-xs text-slate-400 sm:text-sm">
+                            Navegue pela Pokédex oficial, filtrando por região, tipo, buscando por nome ou número
+                            e explorando os registros da PokéAPI.
+                        </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+                        <span className="rounded-full border border-slate-700 bg-slate-950/80 px-3 py-1">
+                            {total.toLocaleString("pt-BR")} resultados
+                        </span>
+
+                        {selectedRegion && (
+                            <span className="rounded-full border border-sky-700 bg-sky-500/10 px-3 py-1 text-sky-200">
+                                Região selecionada: {selectedRegion.name}
+                            </span>
+                        )}
+
+                        {selectedTypeLabel && (
+                            <span className="rounded-full border border-emerald-700 bg-emerald-500/10 px-3 py-1 text-emerald-200">
+                                Tipo selecionado: {selectedTypeLabel}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            </header>
+
+            {/* Filtros */}
+            <section className="space-y-4">
+                <form className="space-y-4" method="GET">
+                    {/* Busca */}
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                        <Input
+                            name="q"
+                            defaultValue={q}
+                            placeholder="Buscar por nome ou número (#0001)..."
+                            className="w-full bg-slate-900/80 text-sm"
+                        />
+                        <Button
+                            type="submit"
+                            className="h-10 px-6 text-xs font-semibold uppercase tracking-[0.18em]"
+                        >
+                            Aplicar filtros
+                        </Button>
+                    </div>
+
+                    {/* Selects: região + tipo + ordenação */}
+                    <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                        {/* Região */}
+                        <div className="space-y-1">
+                            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                                Região
+                            </p>
+                            <Select name="region" defaultValue={region ?? "all"}>
+                                <SelectTrigger className="h-10 bg-slate-900/80 text-xs">
+                                    <SelectValue placeholder="Todas as regiões" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Todas as regiões</SelectItem>
+                                    {REGIONS.map((r) => (
+                                        <SelectItem key={r.id} value={r.id}>
+                                            {r.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Tipo */}
+                        <div className="space-y-1">
+                            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                                Tipo
+                            </p>
+                            <Select name="type" defaultValue={typeFilter ?? "all"}>
+                                <SelectTrigger className="h-10 bg-slate-900/80 text-xs">
+                                    <SelectValue placeholder="Todos os tipos" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Todos os tipos</SelectItem>
+                                    {TYPE_OPTIONS.map((t) => (
+                                        <SelectItem key={t.value} value={t.value}>
+                                            {t.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Ordenação */}
+                        <div className="space-y-1">
+                            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                                Ordenar por
+                            </p>
+                            <Select name="sort" defaultValue={sort}>
+                                <SelectTrigger className="h-10 bg-slate-900/80 text-xs">
+                                    <SelectValue placeholder="Ordenar" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="number-asc">Nº crescente</SelectItem>
+                                    <SelectItem value="number-desc">Nº decrescente</SelectItem>
+                                    <SelectItem value="name-asc">Nome A → Z</SelectItem>
+                                    <SelectItem value="name-desc">Nome Z → A</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                </form>
+            </section>
+
+            {/* Grid de Pokémon */}
+            <section className="space-y-4">
+                {pageItems.length === 0 ? (
+                    <p className="text-sm text-slate-400">
+                        Nenhum Pokémon encontrado com os filtros atuais.
+                    </p>
+                ) : (
+                    <>
+                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+                            {pageItems.map((pokemon) => (
+                                <Link
+                                    key={pokemon.id}
+                                    href={`/pokemon/${pokemon.id}`}
+                                    className="group flex flex-col rounded-2xl border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-200 shadow-sm shadow-slate-950/40 transition hover:-translate-y-1 hover:border-red-500/70 hover:shadow-red-900/40"
+                                >
+                                    <div className="relative mb-2 flex h-24 items-center justify-center overflow-hidden rounded-xl bg-slate-900">
+                                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#ef444433,transparent_55%)] opacity-60" />
+                                        <div className="relative h-20 w-20">
+                                            <Image
+                                                src={pokemon.image}
+                                                alt={pokemon.name}
+                                                fill
+                                                className="object-contain transition-transform duration-200 group-hover:scale-110"
+                                            />
+                                        </div>
+                                        <span className="absolute right-2 top-2 rounded-full bg-slate-950/90 px-2 py-0.5 text-[10px] font-mono text-slate-200">
+                                            #{pokemon.id.toString().padStart(4, "0")}
+                                        </span>
+                                    </div>
+
+                                    <div className="flex flex-col gap-1">
+                                        <p className="line-clamp-1 text-[11px] font-semibold text-slate-50">
+                                            {formatName(pokemon.name)}
+                                        </p>
+                                        <p className="text-[10px] text-slate-400">
+                                            Dex nacional · #{pokemon.id.toString().padStart(4, "0")}
+                                        </p>
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
+
+                        {/* Paginação */}
+                        <div className="flex items-center justify-between gap-3 text-xs text-slate-400">
+                            <p>
+                                Página {safePage} de {totalPages}
+                            </p>
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    asChild
+                                    disabled={safePage <= 1}
+                                    className="h-8 border-slate-700 bg-slate-900/80 text-xs"
+                                >
+                                    <Link href={buildPageHref(safePage - 1, q, region, typeFilter, sort)}>
+                                        ← Anterior
+                                    </Link>
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    asChild
+                                    disabled={safePage >= totalPages}
+                                    className="h-8 border-slate-700 bg-slate-900/80 text-xs"
+                                >
+                                    <Link href={buildPageHref(safePage + 1, q, region, typeFilter, sort)}>
+                                        Próxima →
+                                    </Link>
+                                </Button>
+                            </div>
+                        </div>
+                    </>
+                )}
+            </section>
         </div>
     );
 }
