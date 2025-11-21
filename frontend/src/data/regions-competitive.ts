@@ -31,8 +31,7 @@ export type GymInfo = {
   description: string;
   badgeImage?: string;
   leaderImage?: string;
-
-  /** NOVO → time do líder */
+  gymImage?: string;
   team: number[];
 };
 
@@ -74,9 +73,13 @@ export const REGIONS_COMPETITIVE: RegionCompetitiveInfo[] = [
         leader: "Brock",
         badgeName: "Insígnia de Rocha",
         primaryType: "rock",
+        leaderImage: "/regionscompetitivo/kanto/brock.jpg",
+        badgeImage: "/regionscompetitivo/kanto/insignia_pedra.png",
+        gymImage: "/regionscompetitivo/kanto/Pewter_Gym.webp", 
         description:
           "Primeiro ginásio oficial para muitos Treinadores de Kanto. Especializado em Pokémon do tipo Pedra, é usado como teste básico de resistência e planejamento defensivo.",
         team: [74, 95], // Geodude, Onix
+        
       },
       {
         id: "cerulean",
@@ -85,6 +88,9 @@ export const REGIONS_COMPETITIVE: RegionCompetitiveInfo[] = [
         leader: "Misty",
         badgeName: "Insígnia da Cascata",
         primaryType: "water",
+        leaderImage: "/regionscompetitivo/kanto/misty.jpg",
+        badgeImage: "/regionscompetitivo/kanto/insignia_agua.png",
+        gymImage: "/regionscompetitivo/kanto/Cerulean_Gym.webp",
         description:
           "Conduzido pela Líder Misty, o ginásio de Cerulean concentra-se em batalhas aquáticas rápidas e em controle de campo.",
         team: [120, 121], // Staryu, Starmie
@@ -96,6 +102,9 @@ export const REGIONS_COMPETITIVE: RegionCompetitiveInfo[] = [
         leader: "Lt. Surge",
         badgeName: "Insígnia do Trovão",
         primaryType: "electric",
+        leaderImage: "/regionscompetitivo/kanto/ltsurge.webp",
+        badgeImage: "/regionscompetitivo/kanto/insignia_trovao.png",
+        gymImage: "/regionscompetitivo/kanto/Vermilion_Gym.webp",
         description:
           "Baseado em estratégias de alta voltagem e pressão ofensiva, o ginásio de Vermilion é conhecido por seus Pokémon do tipo Elétrico.",
         team: [100, 25, 26], // Voltorb, Pikachu, Raichu
@@ -107,6 +116,9 @@ export const REGIONS_COMPETITIVE: RegionCompetitiveInfo[] = [
         leader: "Erika",
         badgeName: "Insígnia do Arco-Íris",
         primaryType: "grass",
+        leaderImage: "/regionscompetitivo/kanto/erika.png",
+        badgeImage: "/regionscompetitivo/kanto/insignia_planta.jpg",
+        gymImage: "/regionscompetitivo/kanto/Celadon_Gym.webp",
         description:
           "Liderado por Erika, o ginásio de Celadon combina estética natural com táticas de desgaste e controle de status.",
         team: [43, 44, 45], // Oddish/Gloom/Vileplume
@@ -118,6 +130,9 @@ export const REGIONS_COMPETITIVE: RegionCompetitiveInfo[] = [
         leader: "Koga",
         badgeName: "Insígnia da Alma",
         primaryType: "poison",
+        leaderImage: "/regionscompetitivo/kanto/koga.jpeg",
+        badgeImage: "/regionscompetitivo/kanto/insignia_alma.jpg",
+        gymImage: "/regionscompetitivo/kanto/Fuchsia_Gym.webp",
         description:
           "Especializado em venenos, armadilhas e batalhas de desgaste. Koga é conhecido por estratégias imprevisíveis.",
         team: [109, 109, 110, 88], // Koffing, Koffing, Weezing, Grimer
