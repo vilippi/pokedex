@@ -73,6 +73,13 @@ export default function RegionPage() {
                     >
                         ← Voltar para o mundo
                     </Link>
+
+                    <Link
+                        href={`/mundo/${regiaoSlug}/competitivo`}
+                        className="inline-flex items-center rounded-full border border-sky-500/80 bg-sky-500/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-300 hover:bg-sky-500/20 hover:text-sky-100"
+                    >
+                        Info. Competitiva da região
+                    </Link> 
                 </div>
             </header>
 

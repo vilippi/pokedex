@@ -498,7 +498,7 @@ export default function CompetitiveRegionPage() {
           .map((champion) => (
             <section
               key={champion.id}
-              className="border border-red-500/30 rounded-3xl p-8 bg-gradient-to-br from-slate-900 to-slate-950 space-y-8 shadow-red-900/40 shadow-xl"
+              className="border border-red-500/30 rounded-3xl p-8 bg-linear-to-br from-slate-900 to-slate-950 space-y-8 shadow-red-900/40 shadow-xl"
             >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                 {/* LEFT INFO */}
